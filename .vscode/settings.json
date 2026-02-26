@@ -1,0 +1,7 @@
+{
+    "editor.tabSize": 4,
+    "[rust]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "editor.formatOnSave": true,
+}
