@@ -1,0 +1,19 @@
+{
+    "config": {
+        "source": "https://images.pexels.com/photos/1056251/pexels-photo-1056251.jpeg",
+        "retry_count": 3,
+        "refresh_rate": 10
+    },
+    "plan": [
+        {
+            "name": "sunday",
+            "source": "https://images.pexels.com/photos/1440918/pexels-photo-1440918.jpeg",
+            "date": "7 * *"
+        },
+        {
+            "name": "monday",
+            "source": "https://images.pexels.com/photos/1440918/pexels-photo-1440918.jpeg",
+            "date": "1 * *"
+        }
+    ]
+}
