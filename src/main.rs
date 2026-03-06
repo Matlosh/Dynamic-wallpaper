@@ -1,7 +1,5 @@
-use std::collections::HashMap;
 use std::env;
-use std::fs;
-use serde::Deserialize;
+use settings::Settings;
 
 mod settings;
 
@@ -10,4 +8,15 @@ fn main() {
         println!("Usage: [executable] [settings file path]");
         return
     }
+
+    let settings_path = match env::args().nth(1) {
+        Some(path) => path,
+        None => {
+            panic!("Error processing settings path");
+        }
+    };
+
+    let mut settings: Settings = Settings::new();
+    Settings::parse_settings(&settings_path, &mut settings);
+    println!("{settings:?}");
 }
