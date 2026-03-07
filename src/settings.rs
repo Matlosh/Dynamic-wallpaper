@@ -1,4 +1,20 @@
+use json::JsonValue;
 use std::fs;
+
+// Even though parser accepts single strings in json file
+// it stores them in vector strings for convenience
+
+#[derive(Debug)]
+struct ApiFilterSettings {
+    field: Vec<String>,
+    values: Vec<String>,
+}
+
+#[derive(Debug)]
+struct ApiSettings {
+    source_url_key: Vec<String>,
+    filter: Option<ApiFilterSettings>,
+}
 
 #[derive(Debug)]
 struct Section {
@@ -6,7 +22,9 @@ struct Section {
     // date cron like format
     date: String,
     // images/image path or url
-    source: String
+    source: String,
+    // api fetching settings
+    api: Option<ApiSettings>,
 }
 
 #[derive(Debug)]
@@ -16,25 +34,40 @@ struct ConfigSection {
     // image fetch retry count
     retry_count: u8,
     // how often should the "cron" date be rechecked
-    refresh_rate: u16
+    refresh_rate: u16,
 }
 
 #[derive(Debug)]
 pub struct Settings {
     config: ConfigSection,
-    sections: Vec<Section>
+    sections: Vec<Section>,
 }
 
 impl Settings {
     pub fn new() -> Settings {
         Settings {
-            config: ConfigSection { default: "".to_string(), retry_count: 3, refresh_rate: 10 },
-            sections: Vec::new()
+            config: ConfigSection {
+                default: "".to_string(),
+                retry_count: 3,
+                refresh_rate: 10,
+            },
+            sections: Vec::new(),
+        }
+    }
+
+    // field is an atomic value: it is a string or array of strings
+    fn save_field_to_vec(vec: &mut Vec<String>, field: &JsonValue) {
+        if field.is_array() {
+            for member in field.members() {
+                vec.push(member.as_str().unwrap_or_else(|| "").to_string());
+            }
+        } else {
+            vec.push(field.as_str().unwrap_or_else(|| "").to_string());
         }
     }
 
     // Fills settings attribute in place
-    pub fn parse_settings(settings_path: &String, settings: &mut Settings) {        
+    pub fn parse_settings(&mut self, settings_path: &String) {
         let contents = match fs::read_to_string(settings_path) {
             Ok(content) => content,
             Err(_) => {
@@ -49,10 +82,10 @@ impl Settings {
             }
         };
 
-        settings.config = ConfigSection {
+        self.config = ConfigSection {
             default: file["default"].as_str().unwrap_or_else(|| "").to_string(),
-            retry_count: file["retry_count"].as_u8().unwrap_or_else(|| { 3 }),
-            refresh_rate: file["refresh_rate"].as_u16().unwrap_or_else(|| { 10 })
+            retry_count: file["retry_count"].as_u8().unwrap_or_else(|| 3),
+            refresh_rate: file["refresh_rate"].as_u16().unwrap_or_else(|| 10),
         };
 
         let plan = file["plan"].members();
@@ -61,13 +94,54 @@ impl Settings {
                 continue;
             }
 
+            let api: Option<ApiSettings> = 'api: {
+                let mut api = ApiSettings {
+                    source_url_key: Vec::new(),
+                    filter: None,
+                };
+
+                if !element.has_key("api") {
+                    break 'api None;
+                }
+
+                let api_json = &element["api"];
+
+                if !api_json.has_key("source_url_key") {
+                    break 'api None;
+                }
+
+                Settings::save_field_to_vec(&mut api.source_url_key, &api_json["source_url_key"]);
+
+                if api_json.has_key("filter") {
+                    let mut filter_settings = ApiFilterSettings {
+                        field: Vec::new(),
+                        values: Vec::new(),
+                    };
+
+                    Settings::save_field_to_vec(
+                        &mut filter_settings.field,
+                        &api_json["filter"]["field"],
+                    );
+
+                    Settings::save_field_to_vec(
+                        &mut filter_settings.values,
+                        &api_json["filter"]["values"],
+                    );
+
+                    api.filter = Some(filter_settings);
+                }
+
+                Some(api)
+            };
+
             let section = Section {
                 name: element["name"].as_str().unwrap().to_string(),
                 source: element["source"].as_str().unwrap().to_string(),
-                date: element["date"].as_str().unwrap().to_string()
+                date: element["date"].as_str().unwrap().to_string(),
+                api,
             };
 
-            settings.sections.push(section);
+            self.sections.push(section);
         }
     }
-} 
+}

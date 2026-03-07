@@ -1,12 +1,12 @@
-use std::env;
 use settings::Settings;
+use std::env;
 
 mod settings;
 
 fn main() {
     if env::args().len() < 2 {
         println!("Usage: [executable] [settings file path]");
-        return
+        return;
     }
 
     let settings_path = match env::args().nth(1) {
@@ -17,6 +17,6 @@ fn main() {
     };
 
     let mut settings: Settings = Settings::new();
-    Settings::parse_settings(&settings_path, &mut settings);
-    println!("{settings:?}");
+    settings.parse_settings(&settings_path);
+    println!("{settings:#?}");
 }
