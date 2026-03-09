@@ -1,6 +1,8 @@
+use display::Display;
 use settings::Settings;
 use std::env;
 
+mod display;
 mod settings;
 
 fn main() {
@@ -18,5 +20,8 @@ fn main() {
 
     let mut settings: Settings = Settings::new();
     settings.parse_settings(&settings_path);
-    println!("{settings:#?}");
+
+    let display: Display = Display::new(settings);
+    display.set_wallpaper("/home/matlosh/wallpapers/yukino3.jpg");
+    println!("{display:#?}");
 }

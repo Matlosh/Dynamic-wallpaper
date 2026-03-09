@@ -44,3 +44,10 @@ Default source field can contain both file path, directory path or image URL pat
 In case of URL paths, if header of returned resource contains any of supported http image resource headers it will be displayed. If source's header contains application/json then it will be further processed.
 
 Any other header or incorrect file fallbacks to the default source.
+
+## Supported wallpaper utilities
+
+- hyprpaper
+- swww
+- mpvpaper
+- swaybg
