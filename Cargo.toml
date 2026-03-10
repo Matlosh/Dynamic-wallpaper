@@ -8,3 +8,6 @@ cron-parser = "0.11.2"
 infer = "0.19.0"
 json = "0.12.4"
 procfs = "0.18.0"
+rand = "0.10.0"
+reqwest = { version = "0.13.2", features = ["blocking", "json"] }
+serde_json = "1.0.149"

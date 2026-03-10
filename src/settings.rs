@@ -4,30 +4,30 @@ use std::fs;
 // Even though parser accepts single strings in json file
 // it stores them in vector strings for convenience
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ApiFilterSettings {
     field: Vec<String>,
     values: Vec<String>,
 }
 
-#[derive(Debug)]
-struct ApiSettings {
-    source_url_key: Vec<String>,
-    filter: Option<ApiFilterSettings>,
+#[derive(Debug, Clone)]
+pub struct ApiSettings {
+    pub source_url_key: Vec<String>,
+    pub filter: Option<ApiFilterSettings>,
 }
 
-#[derive(Debug)]
-struct Section {
+#[derive(Debug, Clone)]
+pub struct Section {
     name: String,
     // date cron like format
     date: String,
     // images/image path or url
     source: String,
     // api fetching settings
-    api: Option<ApiSettings>,
+    pub api: Option<ApiSettings>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ConfigSection {
     // default image path
     default: String,
@@ -37,10 +37,10 @@ struct ConfigSection {
     refresh_rate: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Settings {
     config: ConfigSection,
-    sections: Vec<Section>,
+    pub sections: Vec<Section>,
 }
 
 impl Settings {

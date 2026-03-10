@@ -1,6 +1,11 @@
-use crate::settings::Settings;
+use crate::settings::{ApiSettings, Settings};
+use core::error;
 use procfs::process::Process;
-use std::io::Error;
+use rand::seq::IndexedRandom;
+use reqwest::blocking::Response;
+use serde_json::Value;
+use std::env;
+use std::io::{Error, Write};
 use std::{fs, process::Command};
 
 const ACCEPTABLE_EXTS: [&str; 4] = ["jpg", "png", "webp", "jpeg"];
@@ -63,7 +68,7 @@ impl Display {
         }
 
         Display {
-            settings,
+            settings: settings.clone(),
             tool: running_tool.unwrap(),
         }
     }
@@ -80,25 +85,120 @@ impl Display {
 
     // returns path to a file or (in case path is a directory) finds random applicable source file path
     // that is placed directly in the provided directory
-    // fn read_local(&self, path: &str) -> Result<String, Error> {
-    //     let is_dir = fs::metadata(path)?.is_dir();
+    fn read_local(&self, path: &str) -> Result<String, Error> {
+        let is_dir = fs::metadata(path)?.is_dir();
 
-    //     if is_dir {
-    //         let dir = fs::read_dir(path)?;
+        if is_dir {
+            let dir = fs::read_dir(path)?;
+            let mut file_paths: Vec<String> = Vec::new();
+            let mut rng = rand::rng();
 
-    //         for entry in dir {
-    //             let entry = entry?;
-    //         }
-    //     } else {
-    //         if self.is_file_acceptable(path) {
-    //             self.set_wallpaper(path);
-    //         }
-    //     }
+            for entry in dir {
+                let entry = match entry {
+                    Ok(e) => e,
+                    Err(_) => continue,
+                };
+                let path_buf = entry.path();
+                let path = path_buf.to_str().unwrap_or_else(|| "");
 
-    //     Error::new(std::io::ErrorKind::InvalidFilename, );
-    // }
+                if path.len() == 0 {
+                    continue;
+                }
 
-    fn read_api(&self, url: &str) {}
+                if self.is_file_acceptable(path) {
+                    file_paths.push(path.to_string());
+                }
+            }
+
+            let random_path = file_paths.choose(&mut rng);
+            if random_path.is_some() {
+                return Ok(random_path.unwrap().to_string());
+            }
+        } else {
+            if self.is_file_acceptable(path) {
+                return Ok(path.to_string());
+            }
+        }
+
+        Err(Error::new(
+            std::io::ErrorKind::InvalidFilename,
+            "Couldn't load any file/dir",
+        ))
+    }
+
+    fn download_to_tmp(&self, url: &str) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+        let resp = reqwest::blocking::get(url)?;
+        let bytes = resp.bytes()?;
+
+        let tmp_dir = env::temp_dir();
+        let filename = tmp_dir.join("dynamic_wallpaper");
+        let mut file = std::fs::File::create(&filename)?;
+        file.write_all(&bytes)?;
+
+        Ok(filename)
+    }
+
+    // checks if url is a image source or api (json)
+    // if json then tries to read and find the image url in fetched request
+    pub fn read_api(
+        &self,
+        url: &str,
+        api: Option<ApiSettings>,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let resp: Response = reqwest::blocking::get(url)?;
+        let headers = resp.headers();
+        let content_type = match headers.get("content-type") {
+            Some(h) => h,
+            None => {
+                return Err(
+                    Error::new(std::io::ErrorKind::InvalidData, "Content-type missing").into(),
+                );
+            }
+        }
+        .to_str()
+        .unwrap_or("");
+
+        if content_type.contains("json") {
+            if api.is_none() {
+                return Err(Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "url resolves to json data, but API settings are missing",
+                )
+                .into());
+            }
+
+            let settings = api.unwrap();
+            let mut content: Value = resp.json()?;
+
+            println!("{content:#?}");
+            let mut source_url = String::new();
+            for key in settings.source_url_key {
+                let value = content[&key].clone();
+                if value.is_object() {
+                    content = content[&key].clone();
+                } else {
+                    source_url = value.as_str().unwrap_or("").to_string();
+                }
+            }
+
+            println!("{source_url:#?}");
+            return self.read_api(&source_url, None);
+        }
+
+        let filename = self.download_to_tmp(url)?;
+        let filename = match filename.to_str() {
+            Some(name) => name,
+            None => {
+                return Err(Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Failed parsing downloaded file's filename",
+                )
+                .into());
+            }
+        };
+
+        return Ok(filename.to_string());
+    }
 
     pub fn set_wallpaper(&self, filepath: &str) {
         let result = match self.tool {
@@ -109,7 +209,15 @@ impl Display {
                 .spawn(),
             WallpaperTools::Swww => Command::new("swww").arg("img").arg(filepath).spawn(),
             WallpaperTools::Mpvpaper => Command::new("mpvpaper").arg("ALL").arg(filepath).spawn(),
-            WallpaperTools::Swaybg => Command::new("swaybg").arg("-i").arg(filepath).spawn(),
+            WallpaperTools::Swaybg => {
+                Command::new("pkill").arg("swaybg").output().unwrap();
+                Command::new("swaybg")
+                    .arg("-i")
+                    .arg(filepath)
+                    .arg("-m")
+                    .arg("fit")
+                    .spawn()
+            }
         };
 
         if result.is_err() {
