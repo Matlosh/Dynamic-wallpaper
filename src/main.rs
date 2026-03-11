@@ -21,30 +21,6 @@ fn main() {
     let mut settings: Settings = Settings::new();
     settings.parse_settings(&settings_path);
 
-    let display: Display = Display::new(settings.clone());
-    // display.set_wallpaper(
-    //     display
-    //         .read_local("/home/matlosh/wallpapers")
-    //         .unwrap()
-    //         .as_str(),
-    // );
-
-    let api = settings
-        .clone()
-        .sections
-        .clone()
-        .get(0)
-        .unwrap()
-        .api
-        .clone();
-    display.set_wallpaper(
-        display
-            .read_api(
-                "https://danbooru.donmai.us/posts.json?limit=1&page=[random]&tags=random%3A100",
-                api,
-            )
-            .unwrap()
-            .as_str(),
-    );
-    println!("{display:#?}");
+    let mut display: Display = Display::new(settings.clone());
+    display.setup_automatic_display();
 }

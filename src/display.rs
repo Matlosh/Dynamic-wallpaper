@@ -1,11 +1,14 @@
-use crate::settings::{ApiSettings, Settings};
-use core::error;
+use crate::settings::{ApiSettings, Section, Settings};
+use chrono::{DateTime, Duration, Local, Utc};
+use cron::Schedule;
 use procfs::process::Process;
 use rand::seq::IndexedRandom;
 use reqwest::blocking::Response;
 use serde_json::Value;
 use std::env;
 use std::io::{Error, Write};
+use std::str::FromStr;
+use std::thread;
 use std::{fs, process::Command};
 
 const ACCEPTABLE_EXTS: [&str; 4] = ["jpg", "png", "webp", "jpeg"];
@@ -19,9 +22,19 @@ enum WallpaperTools {
 }
 
 #[derive(Debug)]
+struct Plan {
+    section: Section,
+    schedule: Schedule,
+}
+
+#[derive(Debug)]
 pub struct Display {
     settings: Settings,
     tool: WallpaperTools,
+    // when wallpaper was last set
+    wallpaper_last_timestamp: DateTime<Local>,
+    // wallpaper cron schedules
+    plans: Vec<Plan>,
 }
 
 impl Display {
@@ -67,9 +80,23 @@ impl Display {
             );
         }
 
+        let mut plans: Vec<Plan> = Vec::new();
+
+        for section in &settings.sections {
+            plans.push(Plan {
+                section: section.clone(),
+                schedule: match Schedule::from_str(&section.date) {
+                    Ok(s) => s,
+                    Err(e) => continue,
+                },
+            });
+        }
+
         Display {
-            settings: settings.clone(),
+            settings: settings,
             tool: running_tool.unwrap(),
+            wallpaper_last_timestamp: Local::now(),
+            plans,
         }
     }
 
@@ -140,10 +167,10 @@ impl Display {
 
     // checks if url is a image source or api (json)
     // if json then tries to read and find the image url in fetched request
-    pub fn read_api(
+    fn read_api(
         &self,
         url: &str,
-        api: Option<ApiSettings>,
+        api: &Option<ApiSettings>,
     ) -> Result<String, Box<dyn std::error::Error>> {
         let resp: Response = reqwest::blocking::get(url)?;
         let headers = resp.headers();
@@ -167,7 +194,7 @@ impl Display {
                 .into());
             }
 
-            let settings = api.unwrap();
+            let settings = api.clone().unwrap();
             let mut content: Value = resp.json()?;
 
             println!("{content:#?}");
@@ -182,7 +209,7 @@ impl Display {
             }
 
             println!("{source_url:#?}");
-            return self.read_api(&source_url, None);
+            return self.read_api(&source_url, &None);
         }
 
         let filename = self.download_to_tmp(url)?;
@@ -200,7 +227,7 @@ impl Display {
         return Ok(filename.to_string());
     }
 
-    pub fn set_wallpaper(&self, filepath: &str) {
+    fn set_wallpaper(&self, filepath: &str) {
         let result = match self.tool {
             WallpaperTools::Hyprpaper => Command::new("hyprctl")
                 .arg("hyprpaper")
@@ -225,5 +252,53 @@ impl Display {
         }
     }
 
-    pub fn display_image(&self) {}
+    fn display_image(&mut self) {
+        let interval = Duration::seconds(self.settings.config.refresh_rate);
+        let past_datetime = self.wallpaper_last_timestamp - interval;
+
+        for plan in &self.plans {
+            let mut datetime = plan.schedule.after(&past_datetime).take(1);
+            let datetime = match datetime.next() {
+                Some(dt) => dt,
+                None => continue,
+            };
+
+            println!("{} {datetime:#?}", self.wallpaper_last_timestamp);
+            if self.wallpaper_last_timestamp > datetime {
+                let filepath = self.read_local(&plan.section.source);
+                if filepath.is_ok() {
+                    self.set_wallpaper(filepath.unwrap().as_str());
+                    break;
+                }
+
+                let filepath = self.read_api(&plan.section.source, &plan.section.api);
+                if filepath.is_ok() {
+                    self.set_wallpaper(filepath.unwrap().as_str());
+                } else {
+                    println!(
+                        "An error occured during fetching source from API: {}",
+                        filepath.err().unwrap()
+                    );
+                }
+
+                break;
+            }
+        }
+
+        self.wallpaper_last_timestamp = Local::now();
+    }
+
+    pub fn setup_automatic_display(&mut self) {
+        let interval = Duration::seconds(self.settings.config.refresh_rate);
+        let mut next_time = Utc::now() + interval;
+
+        loop {
+            next_time += interval;
+            let now = Utc::now();
+            if now < next_time {
+                thread::sleep((next_time - now).to_std().unwrap());
+                self.display_image();
+            }
+        }
+    }
 }

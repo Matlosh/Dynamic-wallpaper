@@ -51,3 +51,12 @@ Any other header or incorrect file fallbacks to the default source.
 - swww
 - mpvpaper
 - swaybg
+
+## Cron date format
+
+Here's an exmaple that explains a lot (taken from cron's crate docs):
+
+```rust
+//               sec  min   hour   day of month   month   day of week   year
+let expression = "0   30   9,12,15     1,15       May-Aug  Mon,Wed,Fri  2018/2";
+```

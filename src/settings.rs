@@ -20,26 +20,24 @@ pub struct ApiSettings {
 pub struct Section {
     name: String,
     // date cron like format
-    date: String,
+    pub date: String,
     // images/image path or url
-    source: String,
+    pub source: String,
     // api fetching settings
     pub api: Option<ApiSettings>,
 }
 
 #[derive(Debug, Clone)]
-struct ConfigSection {
+pub struct ConfigSection {
     // default image path
     default: String,
-    // image fetch retry count
-    retry_count: u8,
     // how often should the "cron" date be rechecked
-    refresh_rate: u16,
+    pub refresh_rate: i64,
 }
 
 #[derive(Debug, Clone)]
 pub struct Settings {
-    config: ConfigSection,
+    pub config: ConfigSection,
     pub sections: Vec<Section>,
 }
 
@@ -48,7 +46,6 @@ impl Settings {
         Settings {
             config: ConfigSection {
                 default: "".to_string(),
-                retry_count: 3,
                 refresh_rate: 10,
             },
             sections: Vec::new(),
@@ -84,8 +81,7 @@ impl Settings {
 
         self.config = ConfigSection {
             default: file["default"].as_str().unwrap_or_else(|| "").to_string(),
-            retry_count: file["retry_count"].as_u8().unwrap_or_else(|| 3),
-            refresh_rate: file["refresh_rate"].as_u16().unwrap_or_else(|| 10),
+            refresh_rate: file["refresh_rate"].as_i64().unwrap_or_else(|| 10),
         };
 
         let plan = file["plan"].members();
