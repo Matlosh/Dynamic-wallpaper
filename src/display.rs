@@ -210,8 +210,7 @@ impl Display {
                     let pos = match key.parse::<usize>() {
                         Ok(val) => val,
                         Err(e) => {
-                            panic!("parsing error");
-                            break;
+                            return Err(e.into());
                         }
                     };
                     content = content.as_array().unwrap()[pos].clone();
@@ -263,7 +262,7 @@ impl Display {
         }
     }
 
-    fn display_image(&mut self) {
+    fn display_image(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         let interval = Duration::seconds(self.settings.config.refresh_rate);
         let past_datetime = self.wallpaper_last_timestamp - interval;
 
@@ -275,20 +274,26 @@ impl Display {
             };
 
             if self.wallpaper_last_timestamp > datetime {
-                let filepath = self.read_local(&plan.section.source);
-                if filepath.is_ok() {
-                    self.set_wallpaper(filepath.unwrap().as_str());
-                    break;
-                }
+                let mut retry_count: u16 = 0;
 
-                let filepath = self.read_api(&plan.section.source, &plan.section.api);
-                if filepath.is_ok() {
-                    self.set_wallpaper(filepath.unwrap().as_str());
-                } else {
-                    println!(
-                        "An error occured during fetching source from API: {}",
-                        filepath.err().unwrap()
-                    );
+                while retry_count < self.settings.config.retry_count {
+                    let filepath = self.read_local(&plan.section.source);
+                    if filepath.is_ok() {
+                        self.set_wallpaper(filepath?.as_str());
+                        break;
+                    }
+
+                    match self.read_api(&plan.section.source, &plan.section.api) {
+                        Ok(path) => {
+                            self.set_wallpaper(path.as_str());
+                            break;
+                        }
+                        Err(e) => {
+                            println!("An error occured during fetching source from API: {}", e);
+                        }
+                    };
+
+                    retry_count += 1;
                 }
 
                 break;
@@ -296,6 +301,7 @@ impl Display {
         }
 
         self.wallpaper_last_timestamp = Local::now();
+        Ok(())
     }
 
     pub fn setup_automatic_display(&mut self) {
@@ -307,7 +313,12 @@ impl Display {
             let now = Utc::now();
             if now < next_time {
                 thread::sleep((next_time - now).to_std().unwrap());
-                self.display_image();
+                match self.display_image() {
+                    Err(e) => {
+                        println!("There was an error during image display: {}", e)
+                    }
+                    _ => (),
+                }
             }
         }
     }

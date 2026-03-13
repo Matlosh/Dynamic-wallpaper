@@ -13,7 +13,7 @@ struct ApiFilterSettings {
 #[derive(Debug, Clone)]
 pub struct ApiSettings {
     pub source_url_key: Vec<String>,
-    pub filter: Option<ApiFilterSettings>,
+    filter: Option<ApiFilterSettings>,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +33,7 @@ pub struct ConfigSection {
     default: String,
     // how often should the "cron" date be rechecked
     pub refresh_rate: i64,
+    pub retry_count: u16,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +48,7 @@ impl Settings {
             config: ConfigSection {
                 default: "".to_string(),
                 refresh_rate: 10,
+                retry_count: 3,
             },
             sections: Vec::new(),
         }
@@ -82,6 +84,7 @@ impl Settings {
         self.config = ConfigSection {
             default: file["default"].as_str().unwrap_or_else(|| "").to_string(),
             refresh_rate: file["refresh_rate"].as_i64().unwrap_or_else(|| 10),
+            retry_count: file["retry_count"].as_u16().unwrap_or_else(|| 3),
         };
 
         let plan = file["plan"].members();
