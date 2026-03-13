@@ -26,11 +26,7 @@ _note: as long as it isn't stated so, the field is mandatory_
             "source": [string; file:// or http(s):// source; see "Source resolution" section below for more info],
             "date": [string; cron like format for specifying this plan's appearance date],
             "api": [optional field; used in case source resolves to API that returns an application/json] {
-                "source_url_key": [string or array of strings; path to fetch the source image url],
-                "filter": [optional] {
-                    "field": [string or array of strings; path to string containing constraints],
-                    "values": [string or array of strings; contains what values CAN filter's field contain for image to be fetched]
-                }
+                "source_url_key": [string or array of strings; path to fetch the source image url]
             }
         },
     ]
