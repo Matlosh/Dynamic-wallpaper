@@ -3,7 +3,7 @@ use chrono::{DateTime, Duration, Local, Utc};
 use cron::Schedule;
 use procfs::process::Process;
 use rand::seq::IndexedRandom;
-use reqwest::blocking::Response;
+use reqwest::blocking::{Client, Response};
 use serde_json::Value;
 use std::env;
 use std::io::{Error, Write};
@@ -35,6 +35,7 @@ pub struct Display {
     wallpaper_last_timestamp: DateTime<Local>,
     // wallpaper cron schedules
     plans: Vec<Plan>,
+    client: Client,
 }
 
 impl Display {
@@ -92,11 +93,18 @@ impl Display {
             });
         }
 
+        let client = Client::builder()
+            .user_agent("Mozilla/5.0 (X11; Linux x86_64; rv:148.0) Gecko/20100101 Firefox/148.0")
+            .timeout(std::time::Duration::from_secs(10))
+            .build()
+            .expect("Couldn't construct a reqwest Client");
+
         Display {
             settings: settings,
             tool: running_tool.unwrap(),
             wallpaper_last_timestamp: Local::now(),
             plans,
+            client,
         }
     }
 
@@ -154,7 +162,7 @@ impl Display {
     }
 
     fn download_to_tmp(&self, url: &str) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
-        let resp = reqwest::blocking::get(url)?;
+        let resp = self.client.get(url).send()?;
         let bytes = resp.bytes()?;
 
         let tmp_dir = env::temp_dir();
@@ -172,7 +180,7 @@ impl Display {
         url: &str,
         api: &Option<ApiSettings>,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        let resp: Response = reqwest::blocking::get(url)?;
+        let resp: Response = self.client.get(url).send()?;
         let headers = resp.headers();
         let content_type = match headers.get("content-type") {
             Some(h) => h,
@@ -194,22 +202,25 @@ impl Display {
                 .into());
             }
 
-            let settings = api.clone().unwrap();
+            let settings = api.clone().expect("Cloning ApiSettings failed");
             let mut content: Value = resp.json()?;
 
-            println!("{content:#?}");
-            let mut source_url = String::new();
             for key in settings.source_url_key {
-                let value = content[&key].clone();
-                if value.is_object() {
-                    content = content[&key].clone();
+                if content.is_array() {
+                    let pos = match key.parse::<usize>() {
+                        Ok(val) => val,
+                        Err(e) => {
+                            panic!("parsing error");
+                            break;
+                        }
+                    };
+                    content = content.as_array().unwrap()[pos].clone();
                 } else {
-                    source_url = value.as_str().unwrap_or("").to_string();
+                    content = content[&key].clone();
                 }
             }
 
-            println!("{source_url:#?}");
-            return self.read_api(&source_url, &None);
+            return self.read_api(content.as_str().unwrap(), api);
         }
 
         let filename = self.download_to_tmp(url)?;
@@ -263,7 +274,6 @@ impl Display {
                 None => continue,
             };
 
-            println!("{} {datetime:#?}", self.wallpaper_last_timestamp);
             if self.wallpaper_last_timestamp > datetime {
                 let filepath = self.read_local(&plan.section.source);
                 if filepath.is_ok() {
