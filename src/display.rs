@@ -326,7 +326,7 @@ impl Display {
                 thread::sleep((next_time - now).to_std().unwrap());
                 match self.display_image() {
                     Err(e) => {
-                        println!("There was an error during image display: {}", e),
+                        println!("There was an error during image display: {}", e);
                         self.set_wallpaper(&self.settings.config.default);
                     }
                     _ => (),
