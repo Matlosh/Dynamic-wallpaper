@@ -61,25 +61,25 @@ impl Display {
                 Err(_) => "".to_string(),
             };
 
-            let wallpaper_tool: Option<WallpaperTools> = match exec_name.as_str() {
-                "hyprpaper" => Some(WallpaperTools::Hyprpaper),
-                "swww" => Some(WallpaperTools::Swww),
-                "mpvpaper" => Some(WallpaperTools::Mpvpaper),
-                "swaybg" => Some(WallpaperTools::Swaybg),
-                _ => None,
+            let wallpaper_tool = match Display::find_wallpaper_tool(exec_name.as_str()) {
+                Some(t) => t,
+                None => continue,
             };
 
-            if wallpaper_tool.is_some() {
-                running_tool = wallpaper_tool;
-                break;
-            }
+            running_tool = Some(wallpaper_tool);
+            break;
         }
 
-        if running_tool.is_none() {
-            panic!(
-                "Cannot find any of the supported wallpaper tools. Check out docs for more info."
-            );
-        }
+        println!("{}", settings.config.wallpaper_tool);
+        let tool = match running_tool {
+            Some(t) => t,
+            None => match Display::find_wallpaper_tool(&settings.config.wallpaper_tool) {
+                Some(v) => v,
+                None => panic!(
+                    "Cannot find any of the supported wallpaper tools or the default one. Check out docs for more info."
+                ),
+            },
+        };
 
         let mut plans: Vec<Plan> = Vec::new();
 
@@ -88,7 +88,7 @@ impl Display {
                 section: section.clone(),
                 schedule: match Schedule::from_str(&section.date) {
                     Ok(s) => s,
-                    Err(e) => continue,
+                    Err(_) => continue,
                 },
             });
         }
@@ -101,10 +101,20 @@ impl Display {
 
         Display {
             settings: settings,
-            tool: running_tool.unwrap(),
+            tool: tool,
             wallpaper_last_timestamp: Local::now(),
             plans,
             client,
+        }
+    }
+
+    fn find_wallpaper_tool(exec_name: &str) -> Option<WallpaperTools> {
+        match exec_name {
+            "hyprpaper" => Some(WallpaperTools::Hyprpaper),
+            "swww" => Some(WallpaperTools::Swww),
+            "mpvpaper" => Some(WallpaperTools::Mpvpaper),
+            "swaybg" => Some(WallpaperTools::Swaybg),
+            _ => None,
         }
     }
 
@@ -307,6 +317,8 @@ impl Display {
     pub fn setup_automatic_display(&mut self) {
         let interval = Duration::seconds(self.settings.config.refresh_rate);
         let mut next_time = Utc::now() + interval;
+
+        self.set_wallpaper(&self.settings.config.default);
 
         loop {
             next_time += interval;

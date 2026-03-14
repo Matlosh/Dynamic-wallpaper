@@ -30,7 +30,10 @@ pub struct Section {
 #[derive(Debug, Clone)]
 pub struct ConfigSection {
     // default image path
-    default: String,
+    pub default: String,
+    // what wallpaper tool (hyprland, swaybg, etc) is used in case of
+    // program fails to detect it
+    pub wallpaper_tool: String,
     // how often should the "cron" date be rechecked
     pub refresh_rate: i64,
     pub retry_count: u16,
@@ -47,6 +50,7 @@ impl Settings {
         Settings {
             config: ConfigSection {
                 default: "".to_string(),
+                wallpaper_tool: "".to_string(),
                 refresh_rate: 10,
                 retry_count: 3,
             },
@@ -82,9 +86,18 @@ impl Settings {
         };
 
         self.config = ConfigSection {
-            default: file["default"].as_str().unwrap_or_else(|| "").to_string(),
-            refresh_rate: file["refresh_rate"].as_i64().unwrap_or_else(|| 10),
-            retry_count: file["retry_count"].as_u16().unwrap_or_else(|| 3),
+            default: file["config"]["default"]
+                .as_str()
+                .unwrap_or_else(|| "")
+                .to_string(),
+            wallpaper_tool: file["config"]["wallpaper_tool"]
+                .as_str()
+                .unwrap_or_else(|| "")
+                .to_string(),
+            refresh_rate: file["config"]["refresh_rate"]
+                .as_i64()
+                .unwrap_or_else(|| 10),
+            retry_count: file["config"]["retry_count"].as_u16().unwrap_or_else(|| 3),
         };
 
         let plan = file["plan"].members();
