@@ -16,7 +16,7 @@ _note: as long as it isn't stated so, the field is mandatory_
 ```
 {
     "config": {
-        "default": [string; specifies the default source to be used in case of fetching error],
+        "default": [string; specifies the default local (file) source to be used in case of fetching error],
         "wallpaper_tool": [string; specifies default wallpaper program to use in case of automatic detection error],
         "retry_count": [int; how many times plan's source should be fetched before fallback to the default source],
         "refresh_rate": [int; how often should the plan's date be checked; in seconds]
